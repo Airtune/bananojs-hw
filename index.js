@@ -9,6 +9,7 @@
   const bananodeApi = bananojs.bananodeApi;
   const BananoHwApp = require('hw-app-nano').Banano;
   const transportNodeHid = require('@ledgerhq/hw-transport-node-hid');
+  const transportU2F = require('@ledgerhq/hw-transport-u2f');
 
   const bananoConfig = {};
   bananoConfig.walletPrefix = `44'/198'/`;
@@ -54,7 +55,44 @@
     return retval;
   };
 
+  let _webUSBSupported = undefined;
+  const webUSBSupported = async () => {
+    if (_webUSBSupported === undefined) {
+      const TransportWebUSB = window.TransportWebUSB;
+      const _webUSBSupported = await TransportWebUSB.isSupported();
+    } else {
+      return _webUSBSupported;
+    }
+  };
+
+  const getLedgerAddressFromIndex = async (index) => {
+    try {
+      const accountData = await getLedgerAccountData();
+    } catch(error) {
+      throw error;
+    }
+
+    if (webUSBSupported() && accountData?.account) {
+      return accountData.account;
+    }
+
+    if (window.bananojshwU2FLoader && accountData?.address) {
+      return accountData.address;
+    }
+  };
+
+  // Note that account data is different from WebUSB and U2F
   const getLedgerAccountData = async (index) => {
+    if (webUSBSupported()) {
+      return await getLedgerAccountDataUsingWebUSB(index);
+    }
+
+    if (window.bananojshwU2FLoader) {
+      return await getLedgerAccountDataUsingU2F(index);
+    }
+  };
+
+  const getLedgerAccountDataUsingWebUSB = async (index) => {
     // https://github.com/BananoCoin/bananovault/blob/master/src/app/services/ledger.service.ts#L128
     try {
       const paths = await transportNodeHid.default.list();
@@ -63,6 +101,7 @@
       try {
         const banHwAppInst = new BananoHwApp(transport);
         const accountData = await banHwAppInst.getAddress(getLedgerPath(index));
+        // TODO: Add error message that accountData will be undefined if the Banano ledger app isn't opened and ready.
         accountData.account = accountData.address;
         delete accountData.address;
         return accountData;
@@ -71,6 +110,14 @@
       }
     } catch (error) {
       console.trace('banano getaccount error', error);
+    }
+  };
+
+  const getLedgerAccountDataUsingU2F = async (index) => {
+    try {
+      return await window.bananojshwU2FLoader.getAddress(getLedgerPath(index));
+    } catch (error) {
+      throw error;
     }
   };
 
@@ -125,8 +172,8 @@
 
           const cacheBlockData = {};
           const cacheBlocks = await bananodeApi.getBlocks(
-              [blockData.previous],
-              true,
+            [blockData.previous],
+            true,
           );
           // console.log('signer.signBlock', 'cacheBlocks', cacheBlocks);
           const cacheBlock = cacheBlocks.blocks[blockData.previous];
@@ -139,9 +186,9 @@
           try {
             // const cacheResponse =
             await banHwAppInst.cacheBlock(
-                ledgerPath,
-                cacheBlockData,
-                cacheBlock.signature,
+              ledgerPath,
+              cacheBlockData,
+              cacheBlock.signature,
             );
             // console.log('signer.signBlock', 'cacheResponse', cacheResponse);
           } catch (error) {
@@ -159,6 +206,32 @@
     return signer;
   };
 
+  const getLedgerAccountSignerUsingWebUSB = async (accountIx) => {
+    
+  }
+
+  const getLedgerAccountSignerUsingU2F = async (accountIx) => {
+    
+  }
+
+  // WebUSB or U2F ready
+  const onUsbReady = async (callback) => {
+    if (webUSBSupported()) {
+      callback();
+    } else {
+      const u2fPromise = new Promise((resolve, reject) => {
+        TransportU2F.create()
+          .then((trans) => {
+            window.bananojshwU2FLoader = new BananoHwApp(trans);
+            resolve();
+          })
+          .catch(reject);
+      });
+
+      await u2fPromise().then(callback);
+    }
+  }
+
   // STARTED BOTTOM nodejs/browser hack
   const exports = (() => {
     // istanbul ignore if
@@ -173,7 +246,9 @@
     exports.getConfig = getConfig;
     exports.getLedgerPath = getLedgerPath;
     exports.getLedgerAccountData = getLedgerAccountData;
+    exports.getLedgerAddressFromIndex = getLedgerAddressFromIndex;
     exports.getLedgerAccountSigner = getLedgerAccountSigner;
+    exports.onUsbReady = onUsbReady;
 
     return exports;
   })();
