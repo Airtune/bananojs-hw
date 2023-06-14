@@ -13,7 +13,7 @@ if (window.bananocoin.bananojsHw === undefined) {
 let _webUSBSupported = undefined;
 const webUSBSupported = async () => {
   if (_webUSBSupported === undefined) {
-    _webUSBSupported = await window.transportWebU2FInstance.isSupported();
+    _webUSBSupported = await window.transportWebU2FInstance?.isSupported();
   }
 
   return _webUSBSupported;
