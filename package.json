@@ -8,10 +8,11 @@
     "url": "git+https://github.com/bananocoin/bananojs-hw.git"
   },
   "scripts": {
-    "browserify": "npm run browserify-BananoHwApp && npm run webpack-TransportWebUSB && npm run webpack-TransportWebHID && npm run browserify-bip39",
+    "browserify": "npm run browserify-BananoHwApp && npm run webpack-TransportWebUSB && npm run webpack-TransportWebU2F && npm run webpack-TransportWebHID && npm run browserify-bip39",
     "browserify-bip39": "browserify browserify/bip39.js -o dist/bip39.js",
     "browserify-BananoHwApp": "browserify browserify/BananoHwApp.js -o dist/BananoHwApp.js",
     "webpack-TransportWebUSB": "webpack --config webpack-WebUSB.config.js",
+    "webpack-TransportWebU2F": "webpack --config webpack-WebU2F.config.js",
     "webpack-TransportWebHID": "webpack --config webpack-WebHID.config.js",
     "eslint": "eslint --fix '**/*.js'",
     "npm-check-updates": "npm-check-updates --target minor -u",

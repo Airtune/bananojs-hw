@@ -3,6 +3,8 @@ window.bananocoin.other['@bananocoin/bananojs'] = window.bananocoinBananojs;
 window.bananocoin.other['hw-app-nano'] = window.BananoHwApp;
 window.bananocoin.other['@ledgerhq/hw-transport-node-hid'] =
   window.TransportWebUSB;
+window.bananocoin.other['@ledgerhq/hw-transport-u2f'] =
+  window.TransportWebU2F;
 // end hacks thaat make require() work.
 if (window.bananocoin.bananojsHw === undefined) {
   window.bananocoin.bananojsHw = {};
@@ -37,6 +39,7 @@ window.bananocoin.bananojsHw.getLedgerAccountSigner = async (accountIx) => {
 
   const BananoHwApp = window.BananoHwApp;
   const TransportWebUSB = window.TransportWebUSB;
+  const TransportWebU2F = window.TransportWebU2F;
 
   /* istanbul ignore if */
   if (config === undefined) {
