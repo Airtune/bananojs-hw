@@ -9,6 +9,46 @@ window.bananocoin.other['@ledgerhq/hw-transport-u2f'] =
 if (window.bananocoin.bananojsHw === undefined) {
   window.bananocoin.bananojsHw = {};
 }
+
+let _webUSBSupported = undefined;
+const webUSBSupported = async () => {
+  if (_webUSBSupported === undefined) {
+    _webUSBSupported = await window.transportWebU2FInstance.isSupported();
+  }
+
+  return _webUSBSupported;
+};
+
+const getLedgerAccountDataUsingU2F = async (index) => {
+  const getLedgerPath = window.bananocoinBananojsHw.getLedgerPath;
+  try {
+    return await window.transportWebU2FInstance.getAddress(getLedgerPath(index));
+  } catch (error) {
+    throw error;
+  }
+};
+
+// WebUSB or U2F ready
+window.bananocoin.bananojsHw.onUsbReady = async (callback) => {
+  const BananoHwApp = window.BananoHwApp;
+  if (webUSBSupported()) {
+    callback();
+  } else {
+    /** https://github.com/Nault/Nault/blob/cd6d388e60ce84affaa813991445734cdf64c49f/src/app/services/ledger.service.ts#L268 */
+    /** Creates alternative method for reading from USB, used in Firefox. Legacy technology; desperately want to remove this but people keep asking for Firefox support. */
+    const u2fPromise = new Promise((resolve, reject) => {
+      window.TransportWebU2F.create()
+        .then((trans) => {
+          window.transportWebU2FInstance = new BananoHwApp(trans);
+          resolve();
+        })
+        .catch(reject);
+    });
+
+    await u2fPromise().then(callback);
+  }
+}
+
 window.bananocoin.bananojsHw.getLedgerAccountData = async (index) => {
   // https://github.com/BananoCoin/bananovault/blob/master/src/app/services/ledger.service.ts#L128
   const getLedgerPath = window.bananocoinBananojsHw.getLedgerPath;
@@ -32,14 +72,51 @@ window.bananocoin.bananojsHw.getLedgerAccountData = async (index) => {
   }
 };
 
+window.bananocoin.bananojsHw.getLedgerAddressFromIndex = async (index) => {
+  let accountData;
+
+  try {
+    accountData = await window.bananocoin.bananojsHw.getLedgerAccountData(index);
+  } catch (error) {
+    throw error;
+  }
+
+  if (webUSBSupported() && accountData?.account) {
+    return accountData.account;
+  }
+
+  if (window.transportWebU2FInstance && accountData?.address) {
+    return accountData.address;
+  }
+}
+
 window.bananocoin.bananojsHw.getLedgerAccountSigner = async (accountIx) => {
-  const config = window.bananocoinBananojsHw.bananoConfig;
+  const config = window.bananocoinBananojsHw.bananoConfig; // TODO: Remove config variable? This isn't in use?
+  /* istanbul ignore if */
+  if (config === undefined) {
+    throw Error('config is a required parameter.');
+  }
+  /* istanbul ignore if */
+  if (accountIx === undefined) {
+    throw Error('accountIx is a required parameter.');
+  }
+
+  if (webUSBSupported()) {
+    return createSignerUsingWebUSB(accountIx);
+  }
+
+  if (window.transportWebU2FInstance) {
+    return createSignerUsingU2F(accountIx);
+  }
+};
+
+const createSignerUsingWebUSB = async (accountIx) => {
+  const config = window.bananocoinBananojsHw.bananoConfig; // TODO: Remove config variable? This isn't in use?
   const getLedgerPath = window.bananocoinBananojsHw.getLedgerPath;
   const bananodeApi = window.bananocoinBananojs.bananodeApi;
 
   const BananoHwApp = window.BananoHwApp;
   const TransportWebUSB = window.TransportWebUSB;
-  const TransportWebU2F = window.TransportWebU2F;
 
   /* istanbul ignore if */
   if (config === undefined) {
@@ -86,13 +163,13 @@ window.bananocoin.bananojsHw.getLedgerAccountSigner = async (accountIx) => {
         hwBlockData.representative = blockData.representative;
         hwBlockData.balance = blockData.balance;
         hwBlockData.recipient = window.bananocoinBananojs.getBananoAccount(
-            blockData.link,
+          blockData.link,
         );
 
         const cacheBlockData = {};
         const cacheBlocks = await bananodeApi.getBlocks(
-            [blockData.previous],
-            true,
+          [blockData.previous],
+          true,
         );
         // console.log('signer.signBlock', 'cacheBlocks', cacheBlocks);
         const cacheBlock = cacheBlocks.blocks[blockData.previous];
@@ -101,15 +178,15 @@ window.bananocoin.bananojsHw.getLedgerAccountSigner = async (accountIx) => {
         cacheBlockData.representative = cacheBlock.representative;
         cacheBlockData.balance = cacheBlock.balance;
         cacheBlockData.recipient = window.bananocoinBananojs.getBananoAccount(
-            cacheBlock.link,
+          cacheBlock.link,
         );
         // console.log('signer.signBlock', 'cacheBlockData', cacheBlockData);
         try {
           // const cacheResponse =
           await banHwAppInst.cacheBlock(
-              ledgerPath,
-              cacheBlockData,
-              cacheBlock.signature,
+            ledgerPath,
+            cacheBlockData,
+            cacheBlock.signature,
           );
           // console.log('signer.signBlock', 'cacheResponse', cacheResponse);
         } catch (error) {
@@ -122,6 +199,72 @@ window.bananocoin.bananojsHw.getLedgerAccountSigner = async (accountIx) => {
       return await banHwAppInst.signBlock(ledgerPath, hwBlockData);
     } finally {
       await transport.close();
+    }
+  };
+  return signer;
+}
+
+const createSignerUsingU2F = async (accountIx) => {
+  const getLedgerPath = window.bananocoinBananojsHw.getLedgerPath;
+  const bananodeApi = window.bananocoinBananojs.bananodeApi;
+
+  const ledgerPath = getLedgerPath(accountIx);
+  const accountData = await getLedgerAccountDataUsingU2F(ledgerPath).catch((error) => { throw (error); });
+
+  const signer = {};
+  signer.getPublicKey = () => {
+    return accountData.publicKey;
+  };
+  signer.getAccount = () => {
+    return accountData.address;
+  };
+  signer.signBlock = async (blockData) => {
+    try {
+      // console.log('signer.signBlock', 'blockData', blockData);
+      const hwBlockData = {};
+      if (blockData.previous == '0000000000000000000000000000000000000000000000000000000000000000') {
+        hwBlockData.representative = blockData.representative;
+        hwBlockData.balance = blockData.balance;
+        hwBlockData.sourceBlock = blockData.link;
+      } else {
+        hwBlockData.previousBlock = blockData.previous;
+        hwBlockData.representative = blockData.representative;
+        hwBlockData.balance = blockData.balance;
+        hwBlockData.recipient = window.bananocoinBananojs.getBananoAccount(blockData.link);
+
+        const cacheBlockData = {};
+        const cacheBlocks = await bananodeApi.getBlocks([blockData.previous], true);
+        // console.log('signer.signBlock', 'cacheBlocks', cacheBlocks);
+        const cacheBlock = cacheBlocks.blocks[blockData.previous];
+        // console.log('signer.signBlock', 'cacheBlock', cacheBlock);
+        cacheBlockData.previousBlock = cacheBlock.previous;
+        cacheBlockData.representative = cacheBlock.representative;
+        cacheBlockData.balance = cacheBlock.balance;
+        cacheBlockData.recipient = window.bananocoinBananojs.getBananoAccount(cacheBlock.link);
+        // console.log('signer.signBlock', 'cacheBlockData', cacheBlockData);
+        try {
+          // const cacheResponse =
+          await window.transportWebU2FInstance.cacheBlock(
+            ledgerPath,
+            cacheBlockData,
+            cacheBlock.signature
+          );
+          // console.log('signer.signBlock', 'cacheResponse', cacheResponse);
+        } catch (error) {
+          console.log('signer.signBlock', 'error', error.message);
+          console.trace(error);
+        }
+      }
+
+      console.log('signer.signBlock', 'hwBlockData', hwBlockData);
+      const results = await window.transportWebU2FInstance.signBlock(
+        ledgerPath,
+        hwBlockData
+      );
+
+      return results;
+    } finally {
+      // .....
     }
   };
   return signer;
