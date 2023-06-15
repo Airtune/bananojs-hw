@@ -50,7 +50,7 @@ const getLedgerAccountDataUsingU2F = async (index) => {
   try {
     const ledgerPath = window.bananocoinBananojsHw.getLedgerPath(index);
     console.log(`getLedgerPath return: ${ledgerPath}`);
-    return await window.u2fInst.getAddress(ledgerPath);
+    return await window.u2fInst.getAddress(ledgerPath).catch((error) => { throw(error); });
   } catch (error) {
     throw error;
   }
@@ -93,7 +93,7 @@ window.bananocoin.bananojsHw.onUsbReady = async (callback) => {
 }
 
 window.bananocoin.bananojsHw.getLedgerAccountData = async (index) => {
-  console.log(`getLedgerAccountData`);
+  console.log(`getLedgerAccountData: ${index}`);
   const webUsbSupported = await webUSBSupported();
   console.log(`webUsbSupported: ${webUsbSupported}`);
   if (webUsbSupported) {

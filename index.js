@@ -26,7 +26,13 @@
   };
 
   const getLedgerPath = (accountIndex) => {
-    return `${config.walletPrefix}${accountIndex}'`;
+    if (typeof (accountIndex) === 'number') {
+      return `${config.walletPrefix}${accountIndex}'`;
+    } else {
+      // TODO: Find out why this function is being called with the ledgerPath instead of accountIndex
+      console.error(`unexpected type for accountIndex: ${typeof(accountIndex)}`);
+      return `${accountIndex}`;
+    }
   };
 
   const getLedgerInfo = async () => {
@@ -56,7 +62,7 @@
 
   const getLedgerAddressFromIndex = async (index) => {
     try {
-      const accountData = await getLedgerAccountData();
+      const accountData = await getLedgerAccountData(index);
     } catch (error) {
       throw error;
     }
