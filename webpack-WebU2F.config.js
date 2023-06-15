@@ -3,7 +3,16 @@ const webpack = require('webpack');
 
 module.exports = {
   mode: 'production',
-  entry: './webpack/TransportWebU2F.js',
+  entry: './webpack/TransportWebU2F.ts',
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+    ],
+  },
   output: {
     filename: 'TransportWebU2F.js',
     path: path.resolve(__dirname, 'dist'),

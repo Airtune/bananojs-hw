@@ -180,6 +180,11 @@
     return signer;
   }
 
+  const onUsbReady = async (callback) => {
+    console.log(`onUsbReady default callback`);
+    callback();
+  }
+
   // STARTED BOTTOM nodejs/browser hack
   const exports = (() => {
     // istanbul ignore if
@@ -196,6 +201,7 @@
     exports.getLedgerAccountData = getLedgerAccountData;
     exports.getLedgerAddressFromIndex = getLedgerAddressFromIndex;
     exports.getLedgerAccountSigner = getLedgerAccountSigner;
+    exports.onUsbReady = onUsbReady;
 
     return exports;
   })();
