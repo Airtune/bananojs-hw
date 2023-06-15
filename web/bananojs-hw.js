@@ -5,7 +5,7 @@ window.bananocoin.other['hw-app-nano'] = window.BananoHwApp;
 window.bananocoin.other['@ledgerhq/hw-transport-node-hid'] =
   window.TransportWebUSB;
 window.bananocoin.other['@ledgerhq/hw-transport-u2f'] =
-  window.TransportWebU2F; // TODO: is this needed?
+  window.TransportU2F; // TODO: is this needed?
 // end hacks thaat make require() work.
 if (window.bananocoin.bananojsHw === undefined) {
   window.bananocoin.bananojsHw = {};
@@ -47,13 +47,10 @@ const getLedgerAccountDataUsingWebUSB = async (index) => {
 }
 
 const getLedgerAccountDataUsingU2F = async (index) => {
-  console.log(`getLedgerAccountDataUsingU2F index: ${index}`)
-  const getLedgerPath = window.bananocoinBananojsHw.getLedgerPath;
-  console.log(`getLedgerPath: ${typeof(getLedgerPath)}`);
   try {
-    const ledgerPath = getLedgerPath(index);
+    const ledgerPath = window.bananocoinBananojsHw.getLedgerPath(index);
     console.log(`getLedgerPath return: ${ledgerPath}`);
-    return await window.transportWebU2FInstance.getAddress(ledgerPath);
+    return await window.u2fInst.getAddress(ledgerPath);
   } catch (error) {
     throw error;
   }
@@ -71,15 +68,15 @@ window.bananocoin.bananojsHw.onUsbReady = async (callback) => {
     /** Creates alternative method for reading from USB, used in Firefox. Legacy technology; desperately want to remove this but people keep asking for Firefox support. */
     console.log(`not webusb but u2f`);
     const u2fPromise = new Promise((resolve, reject) => {
-      window.TransportWebU2F.create()
+      window.TransportU2F.create()
         .then((trans) => {
-          console.log(`assiging window.transportWebU2FInstance`);
+          console.log(`assiging window.u2fInst`);
           console.log(trans);
           const uf2Instance = new BananoHwApp(trans);
-          window.transportWebU2FInstance = uf2Instance;
+          window.u2fInst = uf2Instance;
           console.log('yatta! ------------------');
-          console.log(window.bananocoinBananojsHw.getLedgerPath(0));
-          console.log(uf2Instance.getAddress(window.bananocoinBananojsHw.getLedgerPath(0)));
+          //console.log(window.bananocoinBananojsHw.getLedgerPath(0));
+          //console.log(uf2Instance.getAddress(window.bananocoinBananojsHw.getLedgerPath(0)));
           resolve();
         })
         .catch(reject);
@@ -122,7 +119,7 @@ window.bananocoin.bananojsHw.getLedgerAddressFromIndex = async (index) => {
     return accountData.account;
   }
 
-  if (window.transportWebU2FInstance && accountData?.address) {
+  if (window.u2fInst && accountData?.address) {
     return accountData.address;
   }
 }
@@ -144,7 +141,7 @@ window.bananocoin.bananojsHw.getLedgerAccountSigner = async (accountIx) => {
     return createSignerUsingWebUSB(accountIx);
   }
 
-  if (window.transportWebU2FInstance) {
+  if (window.u2fInst) {
     console.log(`return createSignerUsingU2F`);
     return createSignerUsingU2F(accountIx);
   }
@@ -286,7 +283,7 @@ const createSignerUsingU2F = async (accountIx) => {
         // console.log('signer.signBlock', 'cacheBlockData', cacheBlockData);
         try {
           // const cacheResponse =
-          await window.transportWebU2FInstance.cacheBlock(
+          await window.u2fInst.cacheBlock(
             ledgerPath,
             cacheBlockData,
             cacheBlock.signature
@@ -299,7 +296,7 @@ const createSignerUsingU2F = async (accountIx) => {
       }
 
       console.log('signer.signBlock', 'hwBlockData', hwBlockData);
-      const results = await window.transportWebU2FInstance.signBlock(
+      const results = await window.u2fInst.signBlock(
         ledgerPath,
         hwBlockData
       );
