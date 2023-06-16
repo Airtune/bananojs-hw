@@ -64,15 +64,18 @@
     try {
       const accountData = await getLedgerAccountData(index);
     } catch (error) {
-      throw error;
+      return undefined;
     }
 
     return accountData?.account;
   };
 
-  // Note that account data is different from WebUSB and U2F
   const getLedgerAccountData = async (index) => {
-    return await getLedgerAccountDataUsingWebUSB(index);
+    try {
+      return await getLedgerAccountDataUsingWebUSB(index);
+    } catch(error) {
+      console.log('error from getLedgerAccountData calling getLedgerAccountDataUsingWebUSB', error.message);
+    }
   };
 
   const getLedgerAccountDataUsingWebUSB = async (index) => {
@@ -84,10 +87,14 @@
       try {
         const banHwAppInst = new BananoHwApp(transport);
         const accountData = await banHwAppInst.getAddress(getLedgerPath(index));
-        // TODO: Add error message that accountData will be undefined if the Banano ledger app isn't opened and ready.
-        accountData.account = accountData.address;
-        delete accountData.address;
-        return accountData;
+        //  accountData will be undefined if the Banano ledger app isn't opened and ready.
+        if (accountData !== undefined) {
+          accountData.account = accountData.address;
+          delete accountData.address;
+          return accountData;
+        }
+      } catch(error) {
+        console.trace('banano getAddress error', error);
       } finally {
         await transport.close();
       }
@@ -187,7 +194,6 @@
   }
 
   const onUsbReady = async (callback) => {
-    console.log(`onUsbReady default callback`);
     callback();
   }
 
